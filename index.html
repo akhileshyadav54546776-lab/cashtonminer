@@ -69,8 +69,8 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .bal-lbl{font-size:10px;color:var(--sub);letter-spacing:2px;text-transform:uppercase}
 .bal-num{font-family:'Space Mono',monospace;font-size:38px;font-weight:700;color:var(--gold);line-height:1.1;animation:gold-pulse 3s ease-in-out infinite}
 @keyframes gold-pulse{0%,100%{text-shadow:0 0 15px rgba(245,200,66,.3)}50%{text-shadow:0 0 35px rgba(245,200,66,.7),0 0 60px rgba(255,170,0,.2)}}
-.real-row{text-align:center;margin-top:2px}
-.real-v{font-family:'Space Mono',monospace;font-size:11px;color:var(--sub)}
+
+
 
 /* COIN */
 .coin-stage{display:flex;justify-content:center;align-items:center;padding:8px 0 4px;position:relative}
@@ -179,7 +179,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .wallet-hero::after{content:'CT';position:absolute;right:10px;top:5px;font-family:'Syne',sans-serif;font-size:72px;font-weight:800;color:rgba(245,200,66,.06);line-height:1}
 .wh-lbl{font-size:10px;color:var(--sub);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
 .wh-amt{font-family:'Space Mono',monospace;font-size:32px;font-weight:700;color:var(--gold);margin-bottom:4px;display:flex;align-items:center;gap:8px}
-.wh-real{font-family:'Space Mono',monospace;font-size:12px;color:var(--sub);margin-bottom:14px}
+
 .wh-real span{color:var(--blue)}
 .wdr-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--gold2),var(--gold));color:#0C1525;border:none;border-radius:13px;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 16px rgba(245,200,66,.25)}
 .wdr-btn:active{transform:scale(.97)}
@@ -372,7 +372,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
             <div class="bal-block">
         <div class="bal-lbl">Total Balance</div>
         <div class="bal-num" id="mBal">0</div>
-        <div class="real-row"><span class="real-v" id="mReal">0.0000000 TON</span></div>
+        
       </div>
 
       <div class="coin-stage">
@@ -401,7 +401,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
         <div class="rate-big" id="mRateBig">30 TON/sec</div>
         <div class="rate-sub">AUTO MINING SPEED</div>
       </div>
-      <div class="tap-row" id="tapRow">+10 TON per tap</div>
+      <div class="tap-row" id="tapRow" id="tapRow">+50 TON per tap</div>
 
       <div class="mine-bar">
         <div class="pulse-dot"></div>
@@ -518,7 +518,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
           <svg width="28" height="28" viewBox="0 0 200 200"><defs><linearGradient id="wlg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FFE57F"/><stop offset="100%" stop-color="#F5C842"/></linearGradient></defs><text x="100" y="140" text-anchor="middle" font-family="Syne,sans-serif" font-weight="800" font-size="100" fill="url(#wlg)">CT</text></svg>
           <span id="wBal">0</span>
         </div>
-        <div class="wh-real">Real TON: <span id="wReal">0.0000000</span> TON</div>
+        
         <button class="wdr-btn" onclick="openWdr('TON')">⬆️ Withdraw Earnings</button>
       </div>
 
@@ -703,7 +703,7 @@ const REAL    = 0.000001; // 1 coin = this much real TON
 let S = {
   uid:null, username:'', first_name:'Miner',
   balance:0, total_earned:0,
-  tap_power:10,       // display: 10 per tap
+  tap_power:50,       // display: 50 per tap
   cps:60,             // display: 60 per sec
   energy:50000, emax:50000,
   level:1, xp:0, streak:0,
@@ -751,12 +751,23 @@ async function init(){
   const tgu=getTGUser();
   if(tgu){
     S.uid=tgu.id; S.username=tgu.username||''; S.first_name=tgu.first_name||'Miner';
-    // upsert + get user
+    // Restore from localStorage first (instant load)
+    const lsBal = parseInt(localStorage.getItem('ctm_balance')||'0');
+    const lsTot = parseInt(localStorage.getItem('ctm_total')||'0');
+    if(lsBal>0){ S.balance=lsBal; S.total_earned=lsTot; }
+    // upsert + get user from DB
     await rpc('upsert_user',{p_id:tgu.id,p_username:S.username,p_first_name:S.first_name,p_referred_by:null});
     const rows=await sbFetch(`/rest/v1/users?id=eq.${S.uid}&select=*`);
     if(rows?.[0])loadUser(rows[0]);
+    // Sync localStorage with DB
+    localStorage.setItem('ctm_balance', Math.floor(S.balance).toString());
+    localStorage.setItem('ctm_total', Math.floor(S.total_earned).toString());
   }
   spinLeft=S.spins_left;
+  
+  // OFFLINE MINING — calculate coins earned while app was closed
+  calcOfflineMining();
+  
   renderAll();
   updateAch();
   hideLoader();
@@ -860,7 +871,7 @@ function tapCoin(e){
   checkLevel();
   // fast update
   s('mBal',fmt(S.balance));
-  s('mReal',fmtR(S.balance)+' TON');
+  
   s('qsT',fmt(S.taps_today));
   s('qsE',fmt(S.earned_today));
   s('todT',fmt(S.taps_today));
@@ -888,9 +899,9 @@ function startAutoMine(){
     const g2=S.boost?S.cps*2:S.cps;
     S.balance+=g2; S.total_earned+=g2; S.earned_today+=g2;
     s('mBal',fmt(S.balance));
-    s('mReal',fmtR(S.balance)+' TON');
+    
     s('qsE',fmt(S.earned_today));
-    if(SCREEN==='wallet'){s('wBal',fmt(S.balance));s('wReal',fmtR(S.balance));}
+    if(SCREEN==='wallet'){s('wBal',fmt(S.balance));}
     if(SCREEN==='profile'){s('todE',fmt(S.earned_today));s('ps1',fmt(S.balance));}
     dbSave();
   },1000);
@@ -921,6 +932,9 @@ function dbSave(){clearTimeout(saveT);saveT=setTimeout(async()=>{
     method:'PATCH',
     body:JSON.stringify({balance:Math.floor(S.balance),total_earned:Math.floor(S.total_earned),energy:Math.floor(S.energy),level:S.level,xp:S.xp,updated_at:new Date().toISOString()})
   });
+  // Also save to localStorage as backup
+  localStorage.setItem('ctm_balance', Math.floor(S.balance).toString());
+  localStorage.setItem('ctm_total', Math.floor(S.total_earned).toString());
 },5000);}
 
 // ═══════════════════════════
