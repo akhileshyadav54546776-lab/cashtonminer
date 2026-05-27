@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="https://cdn.monetag.com/t/sdk.js?id=11066429" async defer></script>
+<script src="https://cdn.monetag.com/t/sdk.js?id=11066428" async></script>
+<script src="https://cdn.monetag.com/t/sdk.js?id=11066429" async></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>CashTon Miner</title>
@@ -940,62 +941,6 @@ function dbSave(){clearTimeout(saveT);saveT=setTimeout(async()=>{
 // ═══════════════════════════
 // WATCH AD
 // ═══════════════════════════
-let adInProgress=false;
-let adRetry=0;
-
-function watchAd(reward=100,pl='ad'){
-  if(adInProgress){toast('⏳ Ad already loading...');return;}
-  
-  // Check if SDK loaded
-  if(typeof show_11066429 !== 'function'){
-    // SDK not loaded yet — try to load it
-    toast('🎬 Loading ad...');
-    loadMonetag(()=>watchAd(reward,pl));
-    return;
-  }
-  
-  adInProgress=true;
-  adRetry=0;
-  toast('🎬 Ad loading...');
-  
-  tryShowAd(reward,pl);
-}
-
-function tryShowAd(reward,pl){
-  show_11066429()
-    .then(()=>{
-      adInProgress=false;
-      adRetry=0;
-      if(reward>0){
-        addCoins(reward,'ad',pl);
-        toast('✅ +'+reward+' TON earned!');
-        if(navigator.vibrate)navigator.vibrate([50,30,80]);
-      }
-      if(pl==='sw') addSpin();
-    })
-    .catch((e)=>{
-      console.log('Ad err:',e,adRetry);
-      if(adRetry<2){
-        adRetry++;
-        toast('🎬 Finding ad... ('+adRetry+'/3)');
-        setTimeout(()=>tryShowAd(reward,pl), 2000);
-      } else {
-        adInProgress=false;
-        adRetry=0;
-        // Fallback: give small reward anyway so user not frustrated
-        if(reward>0){
-          const fallback=Math.floor(reward/2);
-          addCoins(fallback,'ad_fallback',pl);
-          toast('⚠️ Ad unavailable · +'+fallback+' TON bonus!');
-        } else {
-          toast('⚠️ No ad available right now. Try later!');
-        }
-      }
-    });
-}
-
-function loadMonetag(cb){
-  if(typeof show_11066429==='function'){cb&&cb();return;}
   const s=document.createElement('script');
   s.src='https://cdn.monetag.com/t/sdk.js?id=11066429';
   s.async=true;
@@ -1300,6 +1245,71 @@ function checkEarlyDrop(){
     const left=refNeeded-refDone;
     openRef();
     toast(`👥 Aur ${left} friends invite karo Early Drop ke liye!`);
+  }
+}
+
+// ═══════════════════════════
+// ADS — MONETAG
+// ═══════════════════════════
+let adBusy = false;
+
+function watchAd(reward=100, pl='ad'){
+  if(adBusy){ toast('⏳ Ek ad chal raha hai...'); return; }
+  adBusy = true;
+  toast('🎬 Ad load ho raha hai...');
+
+  // Try Rewarded Interstitial first (11066428)
+  if(typeof show_11066428 === 'function'){
+    show_11066428()
+      .then(()=>{ adSuccess(reward, pl); })
+      .catch(()=>{
+        // Fallback to Rewarded Popup (11066429)
+        tryPopup(reward, pl);
+      });
+  }
+  // Try Rewarded Popup (11066429)
+  else if(typeof show_11066429 === 'function'){
+    tryPopup(reward, pl);
+  }
+  else {
+    // SDK not loaded yet — wait and retry
+    toast('🎬 SDK load ho raha hai...');
+    setTimeout(()=>{
+      adBusy = false;
+      watchAd(reward, pl);
+    }, 3000);
+  }
+}
+
+function tryPopup(reward, pl){
+  if(typeof show_11066429 === 'function'){
+    show_11066429()
+      .then(()=>{ adSuccess(reward, pl); })
+      .catch(()=>{ adFail(reward, pl); });
+  } else {
+    adFail(reward, pl);
+  }
+}
+
+function adSuccess(reward, pl){
+  adBusy = false;
+  if(reward > 0){
+    addCoins(reward, 'ad', pl);
+    toast('✅ +' + reward + ' TON mila! 🎉');
+    if(navigator.vibrate) navigator.vibrate([60,30,100]);
+  }
+  if(pl === 'sw') addSpin();
+}
+
+function adFail(reward, pl){
+  adBusy = false;
+  // Give half reward as consolation
+  if(reward > 0){
+    const half = Math.floor(reward / 2);
+    addCoins(half, 'ad_fallback', pl);
+    toast('⚠️ Ad nahi aaya · +' + half + ' TON bonus diya!');
+  } else {
+    toast('⚠️ Abhi ad available nahi. Thodi der mein try karo!');
   }
 }
 
