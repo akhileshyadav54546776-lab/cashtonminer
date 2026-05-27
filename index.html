@@ -104,14 +104,14 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .e-val{font-family:'Space Mono',monospace;font-size:10px;color:var(--text);white-space:nowrap}
 
 /* STICKERS */
-.stickers{display:flex;justify-content:space-around;padding:4px 14px 6px}
-.stk{font-size:28px;cursor:pointer;animation:stk-bob 2s ease-in-out infinite;transition:transform .15s;filter:drop-shadow(0 3px 6px rgba(0,0,0,.4))}
-.stk:nth-child(1){animation-delay:0s}
-.stk:nth-child(2){animation-delay:.25s}
-.stk:nth-child(3){animation-delay:.5s}
-.stk:nth-child(4){animation-delay:.75s}
-.stk:nth-child(5){animation-delay:1s}
-.stk:active{transform:scale(1.5)!important;animation-play-state:paused}
+
+
+
+
+
+
+
+
 @keyframes stk-bob{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-5px) rotate(4deg)}}
 
 /* QUICK STATS */
@@ -368,16 +368,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
     </div>
 
     <div class="scroll">
-      <!-- stickers -->
-      <div class="stickers">
-        <span class="stk" onclick="stickerTap(this,'🐺')">🐺</span>
-        <span class="stk" onclick="stickerTap(this,'🦊')">🦊</span>
-        <span class="stk" onclick="stickerTap(this,'🐉')">🐉</span>
-        <span class="stk" onclick="stickerTap(this,'🦁')">🦁</span>
-        <span class="stk" onclick="stickerTap(this,'🦅')">🦅</span>
-      </div>
-
-      <div class="bal-block">
+            <div class="bal-block">
         <div class="bal-lbl">Total Balance</div>
         <div class="bal-num" id="mBal">0</div>
         <div class="real-row"><span class="real-v" id="mReal">0.0000000 TON</span></div>
@@ -468,6 +459,14 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
       </div>
       <div class="task-card" id="t6" onclick="claimTask(6,'Follow Twitter',100,'https://x.com/cashtonminer')">
         <div class="task-ico">🐦</div><div class="task-inf"><div class="task-t">Follow on X / Twitter</div><div class="task-s">Follow us on X</div></div><div class="task-rw">+100</div>
+      </div>
+      <div class="task-card" id="t7" onclick="checkEarlyDrop()">
+        <div class="task-ico">🎁</div>
+        <div class="task-inf">
+          <div class="task-t">Early Airdrop Access</div>
+          <div class="task-s">Invite 200 friends to get early drop</div>
+        </div>
+        <div class="task-rw" id="earlyDropBadge">0/200</div>
       </div>
 
       <div class="sec-lbl">Extra Features</div>
@@ -695,7 +694,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 const SB_URL  = "https://ceigalakavttxsbbkdcj.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlaWdhbGFrYXZ0dHhzYmJrZGNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NjM5MzksImV4cCI6MjA5NTEzOTkzOX0.qxyFUPKD8qwVlqJExsad8BYVy0GfmaZJp47auTcgZKw";
 const BOT_UN  = "CashTonMinerBot";
-const REAL    = 0.0000001; // 1 coin = this much real TON
+const REAL    = 0.000001; // 1 coin = this much real TON
 
 // ═══════════════════════════
 // STATE — resets fresh for each new user
@@ -704,7 +703,7 @@ let S = {
   uid:null, username:'', first_name:'Miner',
   balance:0, total_earned:0,
   tap_power:10,       // display: 10 per tap
-  cps:30,             // display: 30 per sec
+  cps:60,             // display: 60 per sec
   energy:50000, emax:50000,
   level:1, xp:0, streak:0,
   spins_left:3, spins_used:0,
@@ -836,6 +835,9 @@ function renderAll(){
   s('refLink',rl); s('refC',S.ref_count); s('refE',fmt(S.ref_count*500));
   // spin
   s('spinLeft',spinLeft);
+  // early drop badge
+  const edb=g('earlyDropBadge');
+  if(edb&&!g('t7')?.classList.contains('done'))edb.textContent=`${S.ref_count||0}/200`;
   renderEnergy();
 }
 
@@ -962,11 +964,6 @@ function activateBoost(){
 // ═══════════════════════════
 // STICKER TAP
 // ═══════════════════════════
-function stickerTap(el,emoji){
-  const msgs={'🐺':'Howl! 🐺','🦊':'Foxy! 🦊','🐉':'Dragon power! 🐉','🦁':'Roar! 🦁','🦅':'Soar! 🦅'};
-  toast(msgs[emoji]||'Hey!');
-  el.style.transform='scale(1.6)';setTimeout(()=>el.style.transform='',300);
-}
 
 // ═══════════════════════════
 // SPIN WHEEL
@@ -1164,13 +1161,32 @@ function openWdr(method){
 
 function submitWdr(method,min){
   const addr=g('wa').value.trim(),amt=parseInt(g('wn').value);
-  if(!addr||!amt){toast('⚠️ Fill all fields!');return;}
-  if(amt<min){toast(`❌ Min ${min.toLocaleString()} TON!`);return;}
-  if(amt>S.balance){toast('❌ Insufficient balance!');return;}
-  S.balance-=amt;S.withdrawn=(S.withdrawn||0)+amt;
-  renderAll();closeWdrOverlay();
-  toast('✅ Withdrawal submitted!');
-  if(S.uid)sbFetch('/rest/v1/withdrawals',{method:'POST',body:JSON.stringify({user_id:S.uid,amount:amt,method,address:addr})}).catch(()=>{});
+  if(!addr||!amt){toast('⚠️ Sabhi fields bharo!');return;}
+  if(amt<min){toast(`❌ Min ${min.toLocaleString()} TON chahiye!`);return;}
+  if(amt>S.balance){toast('❌ Balance kam hai!');return;}
+  closeWdrOverlay();
+  // Show drop message popup
+  showDropMsg();
+  if(S.uid)sbFetch('/rest/v1/withdrawals',{method:'POST',body:JSON.stringify({user_id:S.uid,amount:amt,method,address:addr,status:'pending'})}).catch(()=>{});
+}
+
+function showDropMsg(){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)';
+  overlay.innerHTML=`
+    <div style="background:#0F1C30;border:2px solid rgba(245,200,66,.4);border-radius:24px;padding:28px 22px;text-align:center;max-width:340px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.5)">
+      <div style="font-size:56px;margin-bottom:12px">🎁</div>
+      <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#F5C842;margin-bottom:12px">Airdrop Coming Soon!</div>
+      <div style="font-size:15px;color:#E2EEFF;line-height:1.6;margin-bottom:20px">
+        🚀 <strong>Tumhare account ko Drop jaldi hi milega!</strong><br><br>
+        Tab tak <span style="color:#F5C842;font-weight:700">Mining aur Missions</span> karte raho aur apna balance badhate raho!<br><br>
+        <span style="color:#00E676;font-size:13px">Jitna zyada balance — utna bada drop! 💎</span>
+      </div>
+      <button onclick="this.parentElement.parentElement.remove()" style="width:100%;padding:14px;background:linear-gradient(135deg,#FFAA00,#F5C842);color:#0C1525;border:none;border-radius:14px;font-family:Syne,sans-serif;font-size:16px;font-weight:800;cursor:pointer">
+        ⛏️ Mining Karte Raho!
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
 }
 
 function closeWdrOverlay(e){if(!e||e.target===g('wdrOverlay'))g('wdrOverlay').classList.remove('open');}
@@ -1185,6 +1201,27 @@ function copyRef(){
   navigator.clipboard?.writeText(link).catch(()=>{});
   if(TG)TG.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join CashTon Miner & get 500 TON coins FREE! 💎⛏️')}`);
   toast('📋 Link copied & ready to share!');
+}
+
+// ═══════════════════════════
+// EARLY DROP CHECK
+// ═══════════════════════════
+function checkEarlyDrop(){
+  const refNeeded=200;
+  const refDone=S.ref_count||0;
+  const badge=g('earlyDropBadge');
+  if(badge)badge.textContent=`${refDone}/${refNeeded}`;
+  if(refDone>=refNeeded){
+    // qualified!
+    const t7=g('t7');
+    if(t7){t7.classList.add('done');if(badge)badge.innerHTML='<span class="check">✓</span>';}
+    showDropMsg();
+    toast('🎉 Congratulations! Early drop qualified!');
+  } else {
+    const left=refNeeded-refDone;
+    openRef();
+    toast(`👥 Aur ${left} friends invite karo Early Drop ke liye!`);
+  }
 }
 
 // ═══════════════════════════
