@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="https://cdn.monetag.com/t/sdk.js?id=11066428" async></script>
+<script src="https://cdn.monetag.com/t/sdk.js?id=11066428" async defer></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>CashTon Miner</title>
@@ -926,30 +926,74 @@ function dbSave(){clearTimeout(saveT);saveT=setTimeout(async()=>{
 // ═══════════════════════════
 // WATCH AD
 // ═══════════════════════════
+let adInProgress=false;
+let adRetry=0;
+
 function watchAd(reward=100,pl='ad'){
-  toast('🎬 Ad loading...');
-  // Disable button to prevent double tap
+  if(adInProgress){toast('⏳ Ad already loading...');return;}
+  
+  // Check if SDK loaded
+  if(typeof show_11066428 !== 'function'){
+    // SDK not loaded yet — try to load it
+    toast('🎬 Loading ad...');
+    loadMonetag(()=>watchAd(reward,pl));
+    return;
+  }
+  
   adInProgress=true;
+  adRetry=0;
+  toast('🎬 Ad loading...');
+  
+  tryShowAd(reward,pl);
+}
+
+function tryShowAd(reward,pl){
   show_11066428()
     .then(()=>{
-      // Ad watched successfully — give reward
       adInProgress=false;
+      adRetry=0;
       if(reward>0){
         addCoins(reward,'ad',pl);
         toast('✅ +'+reward+' TON earned!');
         if(navigator.vibrate)navigator.vibrate([50,30,80]);
       }
-      // Extra spin if from spin screen
       if(pl==='sw') addSpin();
     })
     .catch((e)=>{
-      adInProgress=false;
-      console.log('Ad error:',e);
-      // Fallback if ad not available
-      toast('⚠️ Ad not available, try again!');
+      console.log('Ad err:',e,adRetry);
+      if(adRetry<2){
+        adRetry++;
+        toast('🎬 Finding ad... ('+adRetry+'/3)');
+        setTimeout(()=>tryShowAd(reward,pl), 2000);
+      } else {
+        adInProgress=false;
+        adRetry=0;
+        // Fallback: give small reward anyway so user not frustrated
+        if(reward>0){
+          const fallback=Math.floor(reward/2);
+          addCoins(fallback,'ad_fallback',pl);
+          toast('⚠️ Ad unavailable · +'+fallback+' TON bonus!');
+        } else {
+          toast('⚠️ No ad available right now. Try later!');
+        }
+      }
     });
 }
-let adInProgress=false;
+
+function loadMonetag(cb){
+  if(typeof show_11066428==='function'){cb&&cb();return;}
+  const s=document.createElement('script');
+  s.src='https://cdn.monetag.com/t/sdk.js?id=11066428';
+  s.async=true;
+  s.onload=()=>{
+    console.log('Monetag loaded!');
+    setTimeout(()=>{cb&&cb();},500);
+  };
+  s.onerror=()=>{
+    toast('⚠️ Ad network unavailable');
+  };
+  document.head.appendChild(s);
+}
 
 // ═══════════════════════════
 // TASKS
