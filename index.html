@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="https://cdn.monetag.com/t/sdk.js?id=11066428" async></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>CashTon Miner</title>
@@ -498,7 +499,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
         <div class="spin-timer">🕐 <span id="spinCd">23:59:59</span></div>
       </div>
       <button class="spin-btn" id="spinBtn" onclick="doSpin()">SPIN NOW</button>
-      <button class="watch-spin-btn" onclick="watchAd(0,'sw');addSpin()">🎬 Watch Ad → +1 Free Spin</button>
+      <button class="watch-spin-btn" onclick="watchAd(0,'sw')">🎬 Watch Ad → +1 Free Spin</button>
       <div class="ad-card" onclick="watchAd(200,'spin-ad')">
         <div class="ad-ico">🎮</div>
         <div class="ad-info"><div class="ad-t">Play Game · +200 TON</div><div class="ad-s">Sponsored</div></div>
@@ -926,9 +927,29 @@ function dbSave(){clearTimeout(saveT);saveT=setTimeout(async()=>{
 // WATCH AD
 // ═══════════════════════════
 function watchAd(reward=100,pl='ad'){
-  toast('🎬 Loading ad...');
-  setTimeout(()=>{if(reward>0){addCoins(reward,'ad',pl);toast(`✅ +${reward} TON from ad!`);}if(navigator.vibrate)navigator.vibrate(40);},1600);
+  toast('🎬 Ad loading...');
+  // Disable button to prevent double tap
+  adInProgress=true;
+  show_11066428()
+    .then(()=>{
+      // Ad watched successfully — give reward
+      adInProgress=false;
+      if(reward>0){
+        addCoins(reward,'ad',pl);
+        toast('✅ +'+reward+' TON earned!');
+        if(navigator.vibrate)navigator.vibrate([50,30,80]);
+      }
+      // Extra spin if from spin screen
+      if(pl==='sw') addSpin();
+    })
+    .catch((e)=>{
+      adInProgress=false;
+      console.log('Ad error:',e);
+      // Fallback if ad not available
+      toast('⚠️ Ad not available, try again!');
+    });
 }
+let adInProgress=false;
 
 // ═══════════════════════════
 // TASKS
