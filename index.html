@@ -327,7 +327,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .load-t{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--gold)}
 .load-s{font-size:12px;color:var(--sub)}
 .load-bar-wrap{width:160px;height:3px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;margin-top:6px}
-.load-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold));border-radius:3px;animation:load-prog 2.4s ease-out forwards}
+.load-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold));border-radius:3px;animation:load-prog 0.7s ease-out forwards}
 @keyframes load-prog{from{width:0}to{width:100%}}
 </style>
 </head>
@@ -752,23 +752,21 @@ async function init(){
   const tgu=getTGUser();
   if(tgu){
     S.uid=tgu.id; S.username=tgu.username||''; S.first_name=tgu.first_name||'Miner';
-    // Restore from localStorage first (instant load)
+    // INSTANT load from localStorage — no waiting
     const lsBal = parseInt(localStorage.getItem('ctm_balance')||'0');
     const lsTot = parseInt(localStorage.getItem('ctm_total')||'0');
     if(lsBal>0){ S.balance=lsBal; S.total_earned=lsTot; }
-    // upsert + get user from DB
-    await rpc('upsert_user',{p_id:tgu.id,p_username:S.username,p_first_name:S.first_name,p_referred_by:null});
-    const rows=await sbFetch(`/rest/v1/users?id=eq.${S.uid}&select=*`);
-    if(rows?.[0])loadUser(rows[0]);
-    // Sync localStorage with DB
-    localStorage.setItem('ctm_balance', Math.floor(S.balance).toString());
-    localStorage.setItem('ctm_total', Math.floor(S.total_earned).toString());
   }
-  spinLeft=S.spins_left;
-  
-  // OFFLINE MINING — calculate coins earned while app was closed
+
+  // Tap power always 50 — set before render
+  S.tap_power = 50;
+  S.cps = 60;
+  spinLeft = S.spins_left;
+
+  // OFFLINE MINING
   calcOfflineMining();
-  
+
+  // Show app INSTANTLY — don't wait for DB
   renderAll();
   updateAch();
   hideLoader();
@@ -777,7 +775,25 @@ async function init(){
   startSpinTimer();
   drawWheel();
   renderMarket('miners');
-  setTimeout(loadLB,1500);
+
+  // Sync with DB in background — no blocking
+  if(S.uid){
+    syncWithDB().catch(e=>console.log('DB sync err:',e));
+  }
+  setTimeout(loadLB, 2000);
+}
+
+async function syncWithDB(){
+  try{
+    await rpc('upsert_user',{p_id:S.uid,p_username:S.username,p_first_name:S.first_name,p_referred_by:null});
+    const rows=await sbFetch('/rest/v1/users?id=eq.'+S.uid+'&select=*');
+    if(rows?.[0]){
+      loadUser(rows[0]);
+      renderAll();
+      localStorage.setItem('ctm_balance', Math.floor(S.balance).toString());
+      localStorage.setItem('ctm_total', Math.floor(S.total_earned).toString());
+    }
+  }catch(e){ console.log('syncDB err:',e); }
 }
 
 function loadUser(d){
@@ -794,16 +810,18 @@ function loadUser(d){
   S.ref_code      = d.referral_code  ?? '';
   S.ref_count     = d.referral_count ?? 0;
   S.withdrawn     = d.withdrawn      ?? 0;
-  S.tap_power     = 10; // always 10
+  S.tap_power     = 50; // always 50 per tap
+  S.cps           = Math.max(60, S.cps); // minimum 60/sec
   spinLeft        = S.spins_left;
 }
 
 function hideLoader(){
+  // Hide quickly — don't wait for DB
   setTimeout(()=>{
     const l=g('loader');if(!l)return;
-    l.style.opacity='0';l.style.transition='opacity .4s';
-    setTimeout(()=>l.remove(),420);
-  },2500);
+    l.style.opacity='0';l.style.transition='opacity .5s';
+    setTimeout(()=>l.remove(),500);
+  },800);
 }
 
 // ═══════════════════════════
